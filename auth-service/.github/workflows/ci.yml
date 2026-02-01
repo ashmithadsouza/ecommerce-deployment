@@ -1,0 +1,51 @@
+name: Auth Service CI/CD
+
+# Trigger on all branches for builds, PRs targeting main
+on:
+  push:
+    branches: ['*']       # Build on any branch
+  pull_request:
+    branches: ['main']    # Run CI on PRs to main
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      #  Checkout repo
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      #  Set up JDK 17
+      - name: Set up Java
+        uses: actions/setup-java@v3
+        with:
+          distribution: temurin
+          java-version: 17
+
+      #  Build JAR without tests
+      - name: Build with Maven
+        run: mvn clean package -DskipTests
+
+      #  Install Podman
+      - name: Install Podman
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y podman
+
+      #  Build Podman container
+      - name: Build Podman image
+        run: podman build -t ghcr.io/${{ github.repository_owner }}/auth-service:latest .
+
+      #  Log in to GitHub Container Registry
+      - name: Log in to GHCR
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      #  Push image to GHCR ONLY from main branch
+      - name: Push Podman image to GHCR
+        if: github.ref == 'refs/heads/main'
+        run: podman push ghcr.io/${{ github.repository_owner }}/auth-service:latest

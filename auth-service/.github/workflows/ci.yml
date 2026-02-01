@@ -6,6 +6,7 @@ on:
     branches: ['*']       # Build on any branch
   pull_request:
     branches: ['main']    # Run CI on PRs to main
+  workflow_dispatch:
 
 jobs:
   build-and-publish:

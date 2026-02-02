@@ -15,11 +15,19 @@ on:
 
 
 
+# Add this block to fix the "Empty Secret" issue
+
+permissions:
+
+  contents: read
+
+  packages: read
+
+
+
 jobs:
 
   deploy-to-cloud-run:
-
-    # Only run if the CI workflow actually passed
 
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
 
@@ -29,9 +37,19 @@ jobs:
 
     steps:
 
+      # Step 1: Always checkout, even if just for metadata
+
+      - name: Checkout code
+
+        uses: actions/checkout@v4
+
+
+
+      # Step 2: Use v2 of the Auth action
+
       - name: Authenticate to Google Cloud
 
-        uses: google-github-actions/auth@v1
+        uses: google-github-actions/auth@v2
 
         with:
 
@@ -41,7 +59,7 @@ jobs:
 
       - name: Set up Cloud SDK
 
-        uses: google-github-actions/setup-gcloud@v1
+        uses: google-github-actions/setup-gcloud@v2
 
 
 

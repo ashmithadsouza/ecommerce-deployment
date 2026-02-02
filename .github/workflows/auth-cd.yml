@@ -15,9 +15,9 @@ jobs:
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
-          # Tomorrow you will choose ONE of these:
+         
           credentials_json: ${{ secrets.GCP_SA_KEY }} 
-          # OR if you use WIF:
+          # if you use WIF:
           # workload_identity_provider: 'projects/...'
           # service_account: '...'
 

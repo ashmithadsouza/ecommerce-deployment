@@ -1,0 +1,74 @@
+name: Auth Service CI/CD
+
+on:
+  push:
+    branches: ['main', 'release/*']
+    paths: ['auth-service/**']  
+  pull_request:
+    branches: ['main', 'release/*']
+    paths: ['auth-service/**']  
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        
+      - name: Set up Java
+        uses: actions/setup-java@v3
+        with:
+          distribution: temurin
+          java-version: 17
+          
+      - name: Run tests
+        run: cd auth-service && mvn test  
+
+  build:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        
+      - name: Set up Java
+        uses: actions/setup-java@v3
+        with:
+          distribution: temurin
+          java-version: 17
+          
+      - name: Build with Maven
+        run: cd auth-service && mvn clean package -DskipTests  
+        
+      - name: Install Podman
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y podman
+          
+      - name: Build Podman image with version
+        run: |
+          cd auth-service  
+          VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
+          # Use your existing Containerfile - Podman will automatically find it
+          podman build \
+            -t ghcr.io/${{ github.repository_owner }}/auth-service:latest \
+            -t ghcr.io/${{ github.repository_owner }}/auth-service:${{ github.sha }} \
+            -t ghcr.io/${{ github.repository_owner }}/auth-service:$VERSION \
+            -f Containerfile . 
+            
+      - name: Log in to GHCR
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: Push Podman images
+        run: |
+          podman push ghcr.io/${{ github.repository_owner }}/auth-service:latest
+          podman push ghcr.io/${{ github.repository_owner }}/auth-service:${{ github.sha }}
+          podman push ghcr.io/${{ github.repository_owner }}/auth-service:$VERSION

@@ -49,21 +49,13 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y podman
           
-      - name: Build Podman image with cleaned version
+      - name: Build Podman image
         run: |
           cd auth-service
-          # Get version and clean it
-          VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
-          # Remove -SNAPSHOT and any other invalid characters
-          CLEAN_VERSION=$(echo "$VERSION" | sed 's/-SNAPSHOT//g')
-          echo "Original version from pom.xml: $VERSION"
-          echo "Clean version for container: $CLEAN_VERSION"
-          
-          # Build with all three tags
+          echo "Building image..."
+          # Build with localhost/ prefix (like your working local setup)
           podman build \
-            -t auth-service:latest \
-            -t auth-service:${{ github.sha }} \
-            -t auth-service:$CLEAN_VERSION \
+            -t localhost/auth-service:${{ github.sha }} \
             -f Containerfile .
             
       - name: Log in to GHCR
@@ -73,26 +65,21 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
           
-      - name: Push Podman images
+      - name: Push to GHCR
         run: |
-          cd auth-service
-          # Get clean version again
-          VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
-          CLEAN_VERSION=$(echo "$VERSION" | sed 's/-SNAPSHOT//g')
+          echo "Tagging and pushing images..."
           
-          echo "📦 Pushing images to GHCR:"
-          echo "   - latest"
-          echo "   - ${{ github.sha }}"
-          echo "   - $CLEAN_VERSION"
+          # Tag for GHCR (remove localhost/ prefix)
+          podman tag localhost/auth-service:${{ github.sha }} ghcr.io/${{ github.repository_owner }}/auth-service:${{ github.sha }}
+          podman tag localhost/auth-service:${{ github.sha }} ghcr.io/${{ github.repository_owner }}/auth-service:latest
           
-          # Tag for GHCR
-          podman tag auth-service:latest ghcr.io/${{ github.repository_owner }}/auth-service:latest
-          podman tag auth-service:${{ github.sha }} ghcr.io/${{ github.repository_owner }}/auth-service:${{ github.sha }}
-          podman tag auth-service:$CLEAN_VERSION ghcr.io/${{ github.repository_owner }}/auth-service:$CLEAN_VERSION
-          
-          # Push all three to GHCR
-          podman push ghcr.io/${{ github.repository_owner }}/auth-service:latest
+          echo "Pushing SHA tag..."
           podman push ghcr.io/${{ github.repository_owner }}/auth-service:${{ github.sha }}
-          podman push ghcr.io/${{ github.repository_owner }}/auth-service:$CLEAN_VERSION
           
-          echo "✅ Successfully pushed all images!"
+          echo "Pushing latest tag..."
+          podman push ghcr.io/${{ github.repository_owner }}/auth-service:latest
+          
+          echo "✅ Successfully pushed to GHCR!"
+          echo "📦 Images available at:"
+          echo "   - ghcr.io/${{ github.repository_owner }}/auth-service:latest"
+          echo "   - ghcr.io/${{ github.repository_owner }}/auth-service:${{ github.sha }}"

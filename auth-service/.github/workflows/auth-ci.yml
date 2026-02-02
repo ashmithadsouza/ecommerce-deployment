@@ -1,0 +1,98 @@
+name: Auth Service CI/CD
+
+on:
+  push:
+    branches: ['main', 'release/*']
+    paths: ['auth-service/**']
+  pull_request:
+    branches: ['main', 'release/*']
+    paths: ['auth-service/**']
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        
+      - name: Set up Java
+        uses: actions/setup-java@v3
+        with:
+          distribution: temurin
+          java-version: 17
+          
+      - name: Run tests
+        run: cd auth-service && mvn test
+
+  build:
+    runs-on: ubuntu-latest
+    if: (github.ref == 'refs/heads/main' && github.event_name == 'push') || github.event_name == 'workflow_dispatch'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        
+      - name: Set up Java
+        uses: actions/setup-java@v3
+        with:
+          distribution: temurin
+          java-version: 17
+          
+      - name: Build with Maven
+        run: cd auth-service && mvn clean package -DskipTests
+        
+      - name: Install Podman
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y podman
+          
+      - name: Build Podman image with cleaned version
+        run: |
+          cd auth-service
+          # Get version and clean it
+          VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
+          # Remove -SNAPSHOT and any other invalid characters
+          CLEAN_VERSION=$(echo "$VERSION" | sed 's/-SNAPSHOT//g')
+          echo "Original version from pom.xml: $VERSION"
+          echo "Clean version for container: $CLEAN_VERSION"
+          
+          # Build with all three tags
+          podman build \
+            -t auth-service:latest \
+            -t auth-service:${{ github.sha }} \
+            -t auth-service:$CLEAN_VERSION \
+            -f Containerfile .
+            
+      - name: Log in to GHCR
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: Push Podman images
+        run: |
+          cd auth-service
+          # Get clean version again
+          VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
+          CLEAN_VERSION=$(echo "$VERSION" | sed 's/-SNAPSHOT//g')
+          
+          echo "📦 Pushing images to GHCR:"
+          echo "   - latest"
+          echo "   - ${{ github.sha }}"
+          echo "   - $CLEAN_VERSION"
+          
+          # Tag for GHCR
+          podman tag auth-service:latest ghcr.io/${{ github.repository_owner }}/auth-service:latest
+          podman tag auth-service:${{ github.sha }} ghcr.io/${{ github.repository_owner }}/auth-service:${{ github.sha }}
+          podman tag auth-service:$CLEAN_VERSION ghcr.io/${{ github.repository_owner }}/auth-service:$CLEAN_VERSION
+          
+          # Push all three to GHCR
+          podman push ghcr.io/${{ github.repository_owner }}/auth-service:latest
+          podman push ghcr.io/${{ github.repository_owner }}/auth-service:${{ github.sha }}
+          podman push ghcr.io/${{ github.repository_owner }}/auth-service:$CLEAN_VERSION
+          
+          echo "✅ Successfully pushed all images!"

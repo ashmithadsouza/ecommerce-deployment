@@ -1,3 +1,5 @@
+LABEL org.opencontainers.image.source=https://github.com/ashmithadsouza/ecommerce-deployment
+
 FROM eclipse-temurin:17-jre
 # Link the image to the repo so it shows up in your Packages tab
 LABEL org.opencontainers.image.source=https://github.com/${{ github.repository }}

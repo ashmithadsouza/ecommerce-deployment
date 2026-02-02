@@ -1,84 +1,73 @@
-name: Auth Service CI/CD
+
+name: Auth Service CI
+
+
 
 on:
+
   push:
-    branches: ['main', 'release/*']
+
+    branches: ['main']
+
     paths: ['auth-service/**']
+
   pull_request:
-    branches: ['main', 'release/*']
+
+    branches: ['main']
+
     paths: ['auth-service/**']
-  workflow_dispatch:
+
+
 
 jobs:
-  test:
+
+  test-and-build:
+
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
-    
+
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-        
+
+      - uses: actions/checkout@v3
+
+      
+
       - name: Set up Java
+
         uses: actions/setup-java@v3
+
         with:
-          distribution: temurin
-          java-version: 17
+
+          distribution: 'temurin'
+
+          java-version: '17'
+
           
-      - name: Run tests
+
+      - name: Run Maven Tests
+
         run: cd auth-service && mvn test
 
-  build:
-    runs-on: ubuntu-latest
-    if: (github.ref == 'refs/heads/main' && github.event_name == 'push') || github.event_name == 'workflow_dispatch'
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-        
-      - name: Set up Java
-        uses: actions/setup-java@v3
-        with:
-          distribution: temurin
-          java-version: 17
-          
-      - name: Build with Maven
-        run: cd auth-service && mvn clean package -DskipTests
-        
-      - name: Install Podman
+
+
+      - name: Build & Push Image (GHCR)
+
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
         run: |
-          sudo apt-get update
-          sudo apt-get install -y podman
-          
-      - name: Build Podman image
-        run: |
+
+          # Use your existing Podman logic here
+
+          echo "${{ secrets.GITHUB_TOKEN }}" | podman login ghcr.io -u ${{ github.actor }} --password-stdin
+
           cd auth-service
-          echo "Building image with localhost prefix..."
-          podman build \
-            -t localhost/auth-service:${{ github.sha }} \
-            -f Containerfile .
-            
-      - name: Log in to GHCR
-        uses: docker/login-action@v2
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-          
-      - name: Push to GHCR
-        run: |
-          echo "Tagging and pushing images..."
-          
-          # Tag for GHCR (remove localhost/ prefix)
-          podman tag localhost/auth-service:${{ github.sha }} ghcr.io/${{ github.repository_owner }}/auth-service:${{ github.sha }}
-          podman tag localhost/auth-service:${{ github.sha }} ghcr.io/${{ github.repository_owner }}/auth-service:latest
-          
-          echo "Pushing SHA tag..."
+
+          mvn clean package -DskipTests
+
+          podman build -t ghcr.io/${{ github.repository_owner }}/auth-service:${{ github.sha }} -f Containerfile .
+
           podman push ghcr.io/${{ github.repository_owner }}/auth-service:${{ github.sha }}
-          
-          echo "Pushing latest tag..."
+
+          podman tag ghcr.io/${{ github.repository_owner }}/auth-service:${{ github.sha }} ghcr.io/${{ github.repository_owner }}/auth-service:latest
+
           podman push ghcr.io/${{ github.repository_owner }}/auth-service:latest
-          
-          echo "✅ Successfully pushed to GHCR!"
-          echo "📦 Images available at:"
-          echo "   - ghcr.io/${{ github.repository_owner }}/auth-service:latest"
-          echo "   - ghcr.io/${{ github.repository_owner }}/auth-service:${{ github.sha }}"
+

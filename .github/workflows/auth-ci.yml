@@ -24,7 +24,7 @@ jobs:
         run: |
           echo "${{ secrets.GITHUB_TOKEN }}" | podman login ghcr.io -u ${{ github.actor }} --password-stdin
           cd auth-service
-          mvn clean package -DskipTests
+          mvn clean package 
           podman build -t ghcr.io/${{ github.repository_owner }}/auth-service:latest -f Containerfile .
           podman push ghcr.io/${{ github.repository_owner }}/auth-service:latest
 

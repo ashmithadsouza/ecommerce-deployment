@@ -1,7 +1,6 @@
 spring:
   datasource:
-    # Leave URL/Username/Password blank because @ServiceConnection
-    # will inject them automatically from the container!
+  
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:

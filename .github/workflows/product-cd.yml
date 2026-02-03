@@ -1,0 +1,39 @@
+name: Product Service Deployment
+
+on:
+  workflow_run:
+    workflows: ["Product Service CI/CD"] 
+    types:
+      - completed
+
+jobs:
+  deploy-to-gcp:
+    # Only run if the CI workflow actually passed
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Deploy to Cloud Run
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: product-service
+          image: ghcr.io/${{ github.repository_owner }}/product-service:latest
+          region: us-central1
+          flags: --allow-unauthenticated
+          # These environment variables tell Spring how to find the Cloud DB
+          env_vars: |
+            SPRING_PROFILES_ACTIVE=prod
+            SPRING_DATASOURCE_URL=jdbc:postgresql:///product_db?cloudSqlInstance=${{ secrets.GCP_INSTANCE_NAME }}&socketFactory=com.google.cloud.sql.postgres.SocketFactory
+            SPRING_DATASOURCE_USERNAME=${{ secrets.DB_USER }}
+            SPRING_DATASOURCE_PASSWORD=${{ secrets.DB_PASSWORD }}
